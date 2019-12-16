@@ -41,7 +41,8 @@ pub fn search_with_limit(
     limit: usize,
 ) -> Result<Vec<(f32, DocAddress)>, TantexError> {
     let collector = TopDocs::with_limit(limit);
-    let searcher = index.searcher();
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
     match searcher.search(query, &collector) {
         Ok(found) => Ok(found),
         Err(e1) => {

@@ -78,7 +78,8 @@ impl SchemaIndex {
         let query = parse_query(&query_parser, &pattern)?;
         let docs = search_with_limit(index, &query, limit)?;
         let mut json_docs: Vec<String> = Vec::with_capacity(docs.len());
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         for (_score, doc_address) in docs.iter() {
             match searcher.doc(*doc_address) {
                 Ok(retrieved_doc) => json_docs.push(schema.to_json(&retrieved_doc)),
@@ -117,7 +118,8 @@ impl SchemaIndex {
     pub fn fetch_one_by_term(&self, term: Term) -> Result<String, TantexError> {
         let schema = self.fetch_schema()?;
         let index = self.fetch_index()?;
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
         let found = search_with_limit(index, &term_query, 1)?;
         if let Some((_score, doc_address)) = found.first() {
@@ -177,11 +179,49 @@ impl SchemaIndex {
                 return Err(e2);
             }
         };
-        if let Err(e1) = index.load_searchers() {
-            let message = format!("index: {:?} - reason: {:?}", index, e1);
-            let e2 = TantexError::FailedToLoadSearchers(message);
-            return Err(e2);
+
+        // if let Err(e1) = index.load_searchers() {
+        //     let message = format!("index: {:?} - reason: {:?}", index, e1);
+        //     let e2 = TantexError::FailedToLoadSearchers(message);
+        //     return Err(e2);
+        // };
+        Ok(last)
+    }
+
+    pub fn delete_documents(
+        &self,
+        json_docs: Vec<String>,
+        heap_size: usize,
+    ) -> Result<u64, TantexError> {
+        let index = self.fetch_index()?;
+        let mut index_writer = self.fetch_index_writer(heap_size)?;
+        let schema = self.fetch_schema()?;
+        for json_item in json_docs {
+            match schema.parse_document(&json_item) {
+                Ok(doc) => {
+                    let _ = index_writer.delete_term(doc);
+                }
+                Err(e1) => {
+                    let json_str = json_item.to_string();
+                    let e2 = TantexError::InvalidDocumentJSON(json_str, e1);
+                    return Err(e2);
+                }
+            }
+        }
+        let last: u64 = match index_writer.commit() {
+            Ok(last) => last,
+            Err(e1) => {
+                let message = format!("index: {:?} - reason: {:?}", index, e1);
+                let e2 = TantexError::FailedToWriteToIndex(message);
+                return Err(e2);
+            }
         };
+
+        // if let Err(e1) = index.load_searchers() {
+        //     let message = format!("index: {:?} - reason: {:?}", index, e1);
+        //     let e2 = TantexError::FailedToLoadSearchers(message);
+        //     return Err(e2);
+        // };
         Ok(last)
     }
 

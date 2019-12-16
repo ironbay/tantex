@@ -1,4 +1,4 @@
-use tantivy::schema::{Cardinality, INT_INDEXED, STRING, TEXT};
+use tantivy::schema::{Cardinality, STRING, TEXT};
 use tantivy::schema::{IndexRecordOption, IntOptions, TextFieldIndexing, TextOptions};
 
 use super::super::tantex_error::TantexError;
@@ -78,7 +78,7 @@ fn set_int_stored(options: IntOptions, stored: bool) -> IntOptions {
 }
 
 pub fn build_int_options(stored: bool, fast: bool) -> IntOptions {
-    set_int_fast(set_int_stored(INT_INDEXED, stored), fast)
+    set_int_fast(set_int_stored(IntOptions::default(), stored), fast)
 }
 
 pub fn build_text_options(stored: bool) -> TextOptions {
